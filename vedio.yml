@@ -1,0 +1,736 @@
+app:
+  description: Professional short video content analysis tool - comprehensive analysis of story coherence, visual style, script appeal, video quality and other key indicators
+  icon: 🎬
+  icon_background: '#667085'
+  mode: workflow
+  name: Video Content Analysis Workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.3
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_types:
+      - video
+      - image
+      enabled: true
+      number_limits: 5
+    opening_statement: Welcome to the professional video analysis tool! Please upload your video file, and I will provide professional analysis from multiple dimensions including story coherence, visual style, script appeal, and video quality.
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: 
+    - Is the visual style of this video consistent?
+    - How attractive is the script content?
+    - Is the video quality clear?
+    - Is the story coherent?
+    suggested_questions_after_answer:
+      enabled: true
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-basic
+      source: start
+      target: basic_analysis
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: parameter-extractor
+      id: basic-params
+      source: basic_analysis
+      target: param_extractor
+      type: custom
+    - data:
+        sourceType: parameter-extractor
+        targetType: if-else
+      id: params-duration
+      source: param_extractor
+      target: duration_check
+      type: custom
+    - data:
+        sourceType: if-else
+        targetType: llm
+      id: duration-long
+      source: duration_check
+      sourceHandle: 'true'
+      target: long_analysis
+      type: custom
+    - data:
+        sourceType: if-else
+        targetType: llm
+      id: duration-short
+      source: duration_check
+      sourceHandle: 'false'
+      target: short_analysis
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: llm
+      id: long-visual
+      source: long_analysis
+      target: visual_analysis
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: llm
+      id: short-visual
+      source: short_analysis
+      target: visual_analysis
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: llm
+      id: visual-script
+      source: visual_analysis
+      target: script_analysis
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: llm
+      id: script-technical
+      source: script_analysis
+      target: technical_analysis
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: variable-aggregator
+      id: technical-aggregator
+      source: technical_analysis
+      target: result_aggregator
+      type: custom
+    - data:
+        sourceType: variable-aggregator
+        targetType: llm
+      id: aggregator-final
+      source: result_aggregator
+      target: final_report
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: template-transform
+      id: final-template
+      source: final_report
+      target: format_output
+      type: custom
+    - data:
+        sourceType: template-transform
+        targetType: end
+      id: template-end
+      source: format_output
+      target: end
+      type: custom
+  nodes:
+  - data:
+      desc: Receive user uploaded video files and analysis requirements
+      selected: false
+      title: Start
+      type: start
+      variables:
+      - description: Please upload the video files that need to be analyzed
+        label: Video Files
+        max_length: 48
+        options: []
+        required: true
+        type: file-list
+        variable: video_files
+      - description: Please describe your specific analysis requirements or focus points
+        label: Analysis Requirements
+        max_length: 500
+        options: []
+        required: false
+        type: paragraph
+        variable: analysis_requirements
+      - description: Select video type for targeted analysis
+        label: Video Type
+        max_length: 48
+        options:
+        - Drama
+        - Educational
+        - Product Demo
+        - Entertainment
+        - Knowledge Sharing
+        - Lifestyle
+        - Commercial
+        - Other
+        required: true
+        type: select
+        variable: video_type
+    id: start
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Initial analysis of video basic information and technical parameters
+      model:
+        completion_params:
+          temperature: 0.3
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: basic-system
+        role: system
+        text: |
+          You are a professional video content analyst with rich experience in short video production and evaluation. Please conduct an initial analysis of the uploaded video to extract basic information.
+
+          Analysis requirements:
+          1. Describe basic video information (duration, size, format, etc.)
+          2. Summarize main content and themes
+          3. Identify video type and style
+          4. Evaluate technical quality (resolution, frame rate, compression quality)
+          5. Check for obvious technical issues
+
+          Please use professional and objective language for analysis to provide foundational information for subsequent detailed analysis.
+      - id: basic-user
+        role: user
+        text: |
+          Please analyze the following video files:
+
+          Video Files: {{#start.video_files#}}
+          Video Type: {{#start.video_type#}}
+          User Requirements: {{#start.analysis_requirements#}}
+
+          Please provide detailed basic information analysis.
+      selected: false
+      title: Video Basic Info Analysis
+      type: llm
+      vision:
+        enabled: true
+    id: basic_analysis
+    type: custom
+  - data:
+      desc: Extract key parameters from video for subsequent analysis
+      instruction: Extract key parameters from basic video analysis for subsequent professional analysis workflow
+      parameters:
+      - description: Video duration in seconds
+        form: llm
+        name: duration
+        required: true
+        type: number
+      - description: Video resolution
+        form: llm
+        name: resolution
+        required: true
+        type: string
+      - description: Video theme type
+        form: llm
+        name: theme_type
+        required: true
+        type: string
+      - description: Whether contains person appearance
+        form: llm
+        name: has_person
+        required: true
+        type: boolean
+      - description: Whether contains subtitles or text
+        form: llm
+        name: has_text
+        required: true
+        type: boolean
+      - description: Background music type
+        form: llm
+        name: music_type
+        required: false
+        type: string
+      query: '{{#basic_analysis.text#}}'
+      selected: false
+      title: Parameter Extraction
+      type: parameter-extractor
+    id: param_extractor
+    type: custom
+  - data:
+      cases:
+      - case_id: 'true'
+        conditions:
+        - comparison_operator: '>='
+          value: '30'
+          variable_selector:
+          - param_extractor
+          - duration
+        logical_operator: and
+      desc: Choose different analysis strategies based on video duration
+      selected: false
+      title: Duration Check
+      type: if-else
+    id: duration_check
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Deep content analysis for longer videos
+      model:
+        completion_params:
+          temperature: 0.2
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: long-content-system
+        role: system
+        text: |
+          You are a senior video content analysis expert specializing in analyzing content structure and narrative logic of longer videos.
+
+          Analysis dimensions:
+          1. **Story Coherence Analysis**
+             - Plot development logic
+             - Turning point setup
+             - Beginning and ending echo
+             - Main and sub-plot relationships
+
+          2. **Content Depth Assessment**
+             - Information density
+             - Viewpoint clarity
+             - Argument completeness
+             - Educational value
+
+          3. **Rhythm Control**
+             - Reasonable paragraph division
+             - Climax setting
+             - Information delivery rhythm
+             - Audience attention management
+
+          Please provide professional and detailed analysis report.
+      - id: long-content-user
+        role: user
+        text: |
+          Video basic information: {{#basic_analysis.text#}}
+
+          Extracted parameters:
+          - Duration: {{#param_extractor.duration#}} seconds
+          - Resolution: {{#param_extractor.resolution#}}
+          - Theme: {{#param_extractor.theme_type#}}
+          - Contains person: {{#param_extractor.has_person#}}
+          - Contains text: {{#param_extractor.has_text#}}
+
+          Please conduct deep content analysis for this longer video.
+      selected: false
+      title: Long Video Content Analysis
+      type: llm
+      vision:
+        enabled: true
+    id: long_analysis
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Fast-paced analysis for short videos
+      model:
+        completion_params:
+          temperature: 0.2
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: short-content-system
+        role: system
+        text: |
+          You are a short video content analysis expert proficient in evaluating and optimizing fast-paced content.
+
+          Short video specific analysis dimensions:
+          1. **Opening Attraction**
+             - First 3 seconds grabbing power
+             - Visual impact effect
+             - Suspense setting
+             - Topic entry
+
+          2. **Information Delivery Efficiency**
+             - Core information prominence
+             - Redundant content identification
+             - Visual element coordination
+             - Rhythm compactness
+
+          3. **Completion Rate Optimization**
+             - Appropriate content density
+             - Turning point setting
+             - Ending guidance
+             - Emotional resonance points
+
+          4. **Platform Adaptation**
+             - Vertical screen optimization
+             - Subtitle clarity
+             - Volume balance
+             - Mobile experience
+
+          Please provide targeted short video optimization suggestions.
+      - id: short-content-user
+        role: user
+        text: |
+          Video basic information: {{#basic_analysis.text#}}
+
+          Extracted parameters:
+          - Duration: {{#param_extractor.duration#}} seconds
+          - Resolution: {{#param_extractor.resolution#}}
+          - Theme: {{#param_extractor.theme_type#}}
+          - Contains person: {{#param_extractor.has_person#}}
+          - Contains text: {{#param_extractor.has_text#}}
+
+          Please conduct professional analysis for this short video, focusing on special requirements of fast-paced content.
+      selected: false
+      title: Short Video Content Analysis
+      type: llm
+      vision:
+        enabled: true
+    id: short_analysis
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Professional visual style and image quality analysis
+      model:
+        completion_params:
+          temperature: 0.1
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: visual-system
+        role: system
+        text: |
+          You are a professional visual design and photography analyst specializing in evaluating video visual quality and style consistency.
+
+          Visual analysis dimensions:
+          1. **Image Composition Analysis**
+             - Composition rule application (golden ratio, rule of thirds, etc.)
+             - Subject prominence
+             - Depth of field effect
+             - Visual balance
+
+          2. **Color Style Assessment**
+             - Tone consistency
+             - Color coordination
+             - Saturation control
+             - Color emotional expression
+
+          3. **Image Quality Technical Assessment**
+             - Clarity scoring
+             - Noise control
+             - Exposure accuracy
+             - Color reproduction
+
+          4. **Style Consistency**
+             - Filter usage consistency
+             - Camera language consistency
+             - Visual element echo
+             - Brand visual identification
+
+          Please provide professional visual quality assessment report with specific improvement suggestions.
+      - id: visual-user
+        role: user
+        text: |
+          Based on the following video information for visual analysis:
+
+          Basic information: {{#basic_analysis.text#}}
+
+          Video parameters:
+          - Resolution: {{#param_extractor.resolution#}}
+          - Theme type: {{#param_extractor.theme_type#}}
+          - Person appearance: {{#param_extractor.has_person#}}
+
+          Please focus on analyzing visual style consistency, color coordination, composition quality and overall visual effects.
+      selected: false
+      title: Visual Style Analysis
+      type: llm
+      vision:
+        enabled: true
+    id: visual_analysis
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Professional script and audio content analysis
+      model:
+        completion_params:
+          temperature: 0.2
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: script-system
+        role: system
+        text: |
+          You are a senior copywriting and language expression expert specializing in analyzing text and audio content in videos.
+
+          Script and audio analysis dimensions:
+          1. **Script Appeal Assessment**
+             - Opening hook design
+             - Language expression strength
+             - Emotional resonance points
+             - Call-to-action effectiveness
+
+          2. **Dialogue Quality Analysis**
+             - Language fluency
+             - Logical clarity
+             - Expression accuracy
+             - Conversational tone
+
+          3. **Subtitle Optimization Suggestions**
+             - Subtitle synchronization
+             - Font readability
+             - Key information highlighting
+             - Visual interference level
+
+          4. **Audio Quality Assessment**
+             - Voice clarity
+             - Background music matching
+             - Volume balance
+             - Sound effect appropriateness
+
+          5. **Language Expression Strategy**
+             - Target audience matching
+             - Language style consistency
+             - Technical term usage
+             - Emotional delivery effect
+
+          Please provide professional script and audio optimization suggestions.
+      - id: script-user
+        role: user
+        text: |
+          Based on the following information analyze script content:
+
+          Video Type: {{#start.video_type#}}
+          Basic information: {{#basic_analysis.text#}}
+
+          Video parameters:
+          - Contains text: {{#param_extractor.has_text#}}
+          - Background music: {{#param_extractor.music_type#}}
+          - Theme type: {{#param_extractor.theme_type#}}
+
+          Please focus on analyzing script appeal, language expression effectiveness and audio quality.
+      selected: false
+      title: Script Analysis
+      type: llm
+      vision:
+        enabled: true
+    id: script_analysis
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Technical and production craft analysis
+      model:
+        completion_params:
+          temperature: 0.1
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: technical-system
+        role: system
+        text: |
+          You are a professional video post-production and technical analysis expert specializing in evaluating video technical quality and production craftsmanship.
+
+          Technical analysis dimensions:
+          1. **Editing Technique Assessment**
+             - Switching rhythm reasonableness
+             - Transition effect appropriateness
+             - Shot connection smoothness
+             - Editing logic clarity
+
+          2. **Image Quality Technical Assessment**
+             - Resolution clarity scoring
+             - Compression quality assessment
+             - Noise control level
+             - Color reproduction accuracy
+
+          3. **Audio Post-processing**
+             - Audio synchronization precision
+             - Sound effect layering design
+             - Mixing quality
+             - Noise reduction processing effect
+
+          4. **Technical Standardization**
+             - Format standardization
+             - Compression parameter optimization
+             - Platform compatibility
+             - Compatibility considerations
+
+          5. **Production Craft Level**
+             - Overall production precision
+             - Detail processing completeness
+             - Professionalization degree
+             - Innovative technology application
+
+          Please provide professional technical assessment and improvement suggestions.
+      - id: technical-user
+        role: user
+        text: |
+          Based on the following technical information for analysis:
+
+          Basic technical parameters: {{#basic_analysis.text#}}
+
+          Video specifications:
+          - Duration: {{#param_extractor.duration#}} seconds
+          - Resolution: {{#param_extractor.resolution#}}
+          - Music type: {{#param_extractor.music_type#}}
+
+          Please focus on analyzing image quality clarity, editing techniques, audio processing and overall production craft level.
+      selected: false
+      title: Technical Analysis
+      type: llm
+      vision:
+        enabled: true
+    id: technical_analysis
+    type: custom
+  - data:
+      desc: Aggregate all analysis results
+      selected: false
+      title: Result Aggregator
+      type: variable-aggregator
+      variables:
+      - value_selector:
+        - long_analysis
+        - text
+        variable: long_video_analysis
+      - value_selector:
+        - short_analysis
+        - text
+        variable: short_video_analysis
+      - value_selector:
+        - visual_analysis
+        - text
+        variable: visual_analysis
+      - value_selector:
+        - script_analysis
+        - text
+        variable: script_analysis
+      - value_selector:
+        - technical_analysis
+        - text
+        variable: technical_analysis
+    id: result_aggregator
+    type: custom
+  - data:
+      context:
+        enabled: false
+      desc: Generate comprehensive assessment report and optimization suggestions
+      model:
+        completion_params:
+          temperature: 0.2
+        mode: chat
+        name: gpt-4o
+        provider: openai
+      prompt_template:
+      - id: final-system
+        role: system
+        text: |
+          You are a top-level short video production director and content strategy expert who needs to generate final comprehensive assessment and optimization suggestions based on professional team analysis reports.
+
+          Comprehensive assessment requirements:
+          1. **Overall Scoring System**
+             - Story coherence: out of 100 points
+             - Visual style consistency: out of 100 points
+             - Script appeal: out of 100 points
+             - Image quality clarity: out of 100 points
+             - Technical production level: out of 100 points
+             - Overall score: average of five items
+
+          2. **Priority Improvement Suggestions**
+             - Urgent improvements needed (affecting viewing experience)
+             - Important optimization projects (improving quality effects)
+             - Long-term improvement directions (strategic improvements)
+
+          3. **Specific Implementation Plans**
+             - Technical level improvement steps
+             - Content optimization specific measures
+             - Visual effect enhancement suggestions
+
+          4. **Successful Case References**
+             - Characteristics of excellent works of the same type
+             - Creative points that can be borrowed
+             - Common mistakes to avoid
+
+          Please generate professional, practical, and executable final report.
+      - id: final-user
+        role: user
+        text: |
+          Please generate comprehensive assessment based on the following professional analysis reports:
+
+          ## Original Requirements
+          - Video Type: {{#start.video_type#}}
+          - User Requirements: {{#start.analysis_requirements#}}
+
+          ## Professional Analysis Reports
+
+          ### Content Analysis
+          {{#result_aggregator.long_video_analysis#}}
+          {{#result_aggregator.short_video_analysis#}}
+
+          ### Visual Style Analysis
+          {{#result_aggregator.visual_analysis#}}
+
+          ### Script Analysis
+          {{#result_aggregator.script_analysis#}}
+
+          ### Technical Analysis
+          {{#result_aggregator.technical_analysis#}}
+
+          Please generate final report including scoring, optimization suggestions and implementation plans.
+      selected: false
+      title: Final Report
+      type: llm
+    id: final_report
+    type: custom
+  - data:
+      desc: Format final output report
+      selected: false
+      template: |
+        # Professional Video Analysis Assessment Report
+
+        ## Assessment Overview
+
+        **Video Type:** {{#start.video_type#}}
+        **Analysis Time:** {{ 'now' | date: '%Y-%m-%d %H:%M' }}
+        **Analysis Dimensions:** Story coherence, visual style consistency, script appeal, image quality clarity, technical production
+
+        ---
+
+        ## Detailed Analysis Report
+
+        {{#final_report.text#}}
+
+        ---
+
+        ## Improvement Suggestions Summary
+
+        ### Urgent Improvements
+        - Technical or content issues that need immediate attention
+
+        ### Important Optimizations
+        - Improvement points that significantly enhance video quality
+
+        ### Long-term Enhancement Directions
+        - Strategic improvements and brand building suggestions
+
+        ---
+
+        ## Professional Recommendations
+
+        > **Production Team Suggestion:** Based on current video characteristics, recommend continuing to develop expertise in {{#start.video_type#}} type content while focusing on improving technical production standards and user experience design.
+
+        **Analyst Signature:** DifyWorks Video Analysis System  
+        **Report Version:** v1.0
+      title: Format Output
+      type: template-transform
+    id: format_output
+    type: custom
+  - data:
+      desc: Output professional analysis report
+      outputs:
+      - value_selector:
+        - format_output
+        - output
+        variable: analysis_report
+      selected: false
+      title: End
+      type: end
+    id: end
+    type: custom 
